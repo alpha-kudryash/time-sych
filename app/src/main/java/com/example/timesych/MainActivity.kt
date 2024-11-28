@@ -21,6 +21,11 @@ import java.util.*
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.mutableStateListOf
 import androidx.activity.viewModels
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.itemsIndexed
+import androidx.compose.material3.TextField
+import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.unit.dp
 
 class MainActivity : ComponentActivity() {
@@ -85,7 +90,8 @@ fun MainScreen(modifier: Modifier = Modifier, timerViewModel: TimerViewModel) {
     val isCutOff by remember { timerViewModel.isCutOff } // отсечка
     val cutOffTimes = timerViewModel.cutOffTimes // Список отсечек (не используем remember)
     val elapsedTime by remember { timerViewModel.elapsedTime }
-
+    val inputText by remember { timerViewModel.currentInputTextTimer } // Получаем текст из ViewModel
+    val cutOffListTexts = timerViewModel.cutOffListTextsTimer
 
     // Обработчик нажатия кнопки Старт
     val onStartClick: () -> Unit = {
@@ -105,6 +111,11 @@ fun MainScreen(modifier: Modifier = Modifier, timerViewModel: TimerViewModel) {
     // Обработчик нажатия кнопки Пауза
     val onPauseClick: () -> Unit = {
         timerViewModel.pauseTimer()
+    }
+
+    // Обработчик нажатия кнопки Продолжить
+    val onResumeClick: () -> Unit = {
+        timerViewModel.resumeTimer()
     }
 
     // Логика отсчёта времени
@@ -151,16 +162,46 @@ fun MainScreen(modifier: Modifier = Modifier, timerViewModel: TimerViewModel) {
                 text = currentTime,
                 style = androidx.compose.material3.MaterialTheme.typography.headlineLarge,
             )
-
+        }
+        LazyColumn(
+            modifier = Modifier
+                .align(Alignment.TopCenter)
+                .padding(top = 100.dp) // чтобы избежать наложения на другие элементы
+                .fillMaxWidth()
+                .padding(horizontal = 16.dp) // Добавим горизонтальные отступы
+                //.weight(1f)  // Разрешить оставшееся пространство для списка отсечек
+        ) {
             // Отображаем все времена отсечек
             if (cutOffTimes.isNotEmpty()) {
-                Spacer(modifier = Modifier.height(16.dp)) // Добавить пространство между временем и отсечками
-                cutOffTimes.forEach { time ->
+                itemsIndexed(cutOffTimes) { index, time ->  // Для каждого элемента в cutOffTimes
+                    var localInputText by remember { mutableStateOf(cutOffListTexts.getOrNull(index) ?: "") }
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth() // Чтобы Row занимал всю ширину
+                            .padding(vertical = 4.dp) // Отступы между отсечками
+                    ) {
                     Text(
                         text = time,
                         style = androidx.compose.material3.MaterialTheme.typography.bodyLarge,
-                        modifier = Modifier.padding(vertical = 4.dp) // Добавить отступы между текстами
+                        modifier = Modifier
+                            .padding(vertical = 4.dp) // Отступы между отсечками
+                            .padding(end = 8.dp) // Отступ между временем и дополнительным текстом
                     )
+                    // Поле для редактирования текста
+                    TextField(
+                        value = localInputText,
+                        onValueChange = { localInputText = it },
+                        modifier = Modifier
+                            .weight(1f)
+                            .padding(vertical = 4.dp)
+                            .onFocusChanged { focusState ->
+                                if (!focusState.isFocused) {
+                                    // Обновить глобальный список текста, когда фокус теряется
+                                    timerViewModel.updateCutOffText(index, localInputText)
+                                }
+                            }
+                    )
+                    }
                 }
             }
         }
@@ -192,20 +233,17 @@ fun MainScreen(modifier: Modifier = Modifier, timerViewModel: TimerViewModel) {
                     Text(text = "Стоп")
                 }
 
-                // Кнопка "Пауза" (активна только если таймер запущен и не на паузе)
+                // Кнопка "Пауза-продолжить"
                 Button(
-                    onClick = onPauseClick,
-                    enabled = isTimerRunning && !isPaused
+                    onClick = {
+                        if (isTimerRunning) {
+                            onPauseClick()  // Если таймер запущен, вызываем функцию паузы
+                        } else {
+                            onStartClick()  // Если таймер на паузе, запускаем его
+                        }
+                    }
                 ) {
-                    Text(text = "Пауза")
-                }
-
-                // Кнопка "Продолжить" (активна только если на паузе)
-                Button(
-                    onClick = onStartClick,
-                    enabled = isPaused
-                ) {
-                    Text(text = "Продолжить")
+                    Text(text = if (isTimerRunning) "Пауза" else "Продолжить")
                 }
             }
         }

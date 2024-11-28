@@ -14,6 +14,8 @@ class TimerViewModel : ViewModel() {
     var cutOffTimes = mutableStateListOf<String>() // Список времен при отсечке
     var pausedTime = mutableStateOf("00:00:00:00") // Время на момент паузы
     var elapsedTime = mutableStateOf(0L) // Время в миллисекундах
+    var currentInputTextTimer = mutableStateOf("") // Текст, который вводится в поле
+    var cutOffListTextsTimer  = mutableStateListOf<String>() // Массив текста, который вводится в поле
 
     // Запуск таймера
     fun startTimer() {
@@ -24,11 +26,20 @@ class TimerViewModel : ViewModel() {
         }
     }
 
+    // Обновить текст для определенной отсечки по индексу
+    fun updateCutOffText(index: Int, newText: String) {
+        if (index >= 0 && index < cutOffListTextsTimer.size) {
+            cutOffListTextsTimer[index] = newText
+        }
+    }
+
     // Отсечка
     fun cutOffTimer() {
         isCutOff.value = true
         cutOffTimer.value = currentTime.value // Сохраняем текущее время при паузе
         cutOffTimes.add(currentTime.value) // Добавляем текущее время в список отсечек
+        cutOffListTextsTimer.add(currentInputTextTimer.value)
+        currentInputTextTimer.value = ""
     }
 
     // Остановка таймера
@@ -44,5 +55,11 @@ class TimerViewModel : ViewModel() {
         isPaused.value = true
         isTimerRunning.value = false
         pausedTime.value = currentTime.value // Сохраняем текущее время при паузе
+    }
+
+    // Продолжить таймер
+    fun resumeTimer() {
+        isPaused.value = false
+        isTimerRunning.value = true
     }
 }
