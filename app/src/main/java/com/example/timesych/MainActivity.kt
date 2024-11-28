@@ -27,9 +27,12 @@ import androidx.activity.viewModels
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.itemsIndexed
+import androidx.compose.foundation.pager.rememberPagerState
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.TextField
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.unit.dp
+import com.google.accompanist.pager.*
 
 enum class State {
     RESET,   // Состояние, когда таймер сброшен
@@ -188,7 +191,6 @@ fun MainScreen(modifier: Modifier = Modifier, timerViewModel: TimerViewModel) {
                 .fillMaxWidth()
                 .padding(horizontal = 16.dp) // Добавим горизонтальные отступы
                 .padding(bottom = 160.dp) // Добавим горизонтальные отступы
-
         ) {
             // Отображаем все времена отсечек
             if (cutOffTimes.isNotEmpty()) {
@@ -270,10 +272,51 @@ fun MainScreen(modifier: Modifier = Modifier, timerViewModel: TimerViewModel) {
         }
 }
 
-@Preview(showBackground = true)
+@OptIn(ExperimentalPagerApi::class)
 @Composable
-fun GreetingPreview() {
-    TimeSychTheme {
-        MainScreen(timerViewModel = TimerViewModel())
+fun SwipeableTabs() {
+    val pagerState = rememberPagerState() // Состояние пагера (для отслеживания текущей страницы)
+
+    // HorizontalPager для создания свайпа
+    HorizontalPager(
+        count = 2, // Количество вкладок (страниц)
+        state = pagerState, // Состояние пагера
+        modifier = Modifier.fillMaxSize()
+    ) { page ->
+        // Внутри HorizontalPager переключаем содержимое в зависимости от текущей страницы
+        when (page) {
+            0 -> FirstTab() // Первая вкладка
+            1 -> SecondTab() // Вторая вкладка
+        }
+    }
+
+    // Индикатор страниц (точки)
+    HorizontalPagerIndicator(
+        pagerState = pagerState,
+        modifier = Modifier
+            //.align(Alignment.BottomCenter)
+            .padding(16.dp),
+        activeColor = MaterialTheme.colorScheme.primary,
+        inactiveColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f)
+    )
+}
+
+@Composable
+fun FirstTab() {
+    Box(
+        modifier = Modifier.fillMaxSize(),
+        contentAlignment = Alignment.Center
+    ) {
+        Text("Это первая вкладка", style = MaterialTheme.typography.headlineMedium)
+    }
+}
+
+@Composable
+fun SecondTab() {
+    Box(
+        modifier = Modifier.fillMaxSize(),
+        contentAlignment = Alignment.Center
+    ) {
+        Text("Это вторая вкладка", style = MaterialTheme.typography.headlineMedium)
     }
 }
