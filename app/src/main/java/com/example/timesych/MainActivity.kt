@@ -50,7 +50,6 @@ class MainActivity : ComponentActivity() {
     // Обработка нажатия кнопок (увеличение громкости)
     override fun onKeyDown(keyCode: Int, event: KeyEvent?): Boolean {
         if (keyCode == KeyEvent.KEYCODE_VOLUME_UP) {
-            // Запускаем таймер при нажатии кнопки увеличения громкости
             if (!timerViewModel.isTimerRunning.value) {
                 timerViewModel.startTimer()
                 return true
@@ -137,69 +136,79 @@ fun MainScreen(modifier: Modifier = Modifier, timerViewModel: TimerViewModel) {
         }
     }
 
-
-    Column(
-        modifier = modifier.fillMaxSize(),
-        verticalArrangement = Arrangement.Top,
-        horizontalAlignment = Alignment.CenterHorizontally
+    Box(
+        modifier = modifier.fillMaxSize()
     ) {
-        // Текст с временем
-        Text(
-            text = currentTime,
-            style = androidx.compose.material3.MaterialTheme.typography.headlineLarge,
-        )
+        Column(
+            modifier = Modifier
+                .align(Alignment.TopCenter)  // Время будет вверху экрана
+                .fillMaxWidth(),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.Top
+        ) {
+            // Текст с временем
+            Text(
+                text = currentTime,
+                style = androidx.compose.material3.MaterialTheme.typography.headlineLarge,
+            )
 
-        // Отображаем все времена отсечек
-        if (cutOffTimes.isNotEmpty()) {
-            Spacer(modifier = Modifier.height(16.dp)) // Добавить пространство между временем и отсечками
-            cutOffTimes.forEach { time ->
-                Text(
-                    text = time,
-                    style = androidx.compose.material3.MaterialTheme.typography.bodyLarge,
-                    modifier = Modifier.padding(vertical = 4.dp) // Добавить отступы между текстами
-                )
+            // Отображаем все времена отсечек
+            if (cutOffTimes.isNotEmpty()) {
+                Spacer(modifier = Modifier.height(16.dp)) // Добавить пространство между временем и отсечками
+                cutOffTimes.forEach { time ->
+                    Text(
+                        text = time,
+                        style = androidx.compose.material3.MaterialTheme.typography.bodyLarge,
+                        modifier = Modifier.padding(vertical = 4.dp) // Добавить отступы между текстами
+                    )
+                }
             }
         }
+            // Кнопки внизу
+            Column(
+                modifier = Modifier
+                    .align(Alignment.BottomCenter)  // Кнопки выравниваются по центру внизу
+                    .padding(16.dp)  // Добавим отступы для красивого вида
+            ) {
 
-        // Кнопка "Старт"
-        Button(
-            onClick = onStartClick,
-        ) {
-            Text(text = if (isTimerRunning) "Отсечка" else "Старт")
-        }
+                // Кнопка "Старт-отсечка"
+                Button(
+                    onClick = {
+                        if (isTimerRunning) {
+                            onCutOffClick()  // Если таймер запущен, вызываем функцию отсечки
+                        } else {
+                            onStartClick()  // Если таймер не запущен, запускаем его
+                        }
+                    }
+                ) {
+                    Text(text = if (isTimerRunning) "Отсечка" else "Старт")
+                }
 
-        // Кнопка "Отсечка" (активна только если таймер запущен)
-        Button(
-            onClick = onCutOffClick,
-            enabled = isTimerRunning
-        ) {
-            Text(text = "Отсечка")
-        }
+                // Кнопка "Стоп"
+                Button(
+                    onClick = onStopClick,
+                    enabled = isTimerRunning  // Кнопка "Стоп" активна только если таймер запущен
+                ) {
+                    Text(text = "Стоп")
+                }
 
-        // Кнопка "Стоп"
-        Button(
-            onClick = onStopClick,
-            enabled = isTimerRunning  // Кнопка "Стоп" активна только если таймер запущен
-        ) {
-            Text(text = "Стоп")
-        }
+                // Кнопка "Пауза" (активна только если таймер запущен и не на паузе)
+                Button(
+                    onClick = onPauseClick,
+                    enabled = isTimerRunning && !isPaused
+                ) {
+                    Text(text = "Пауза")
+                }
 
-        // Кнопка "Пауза" (активна только если таймер запущен и не на паузе)
-        Button(
-            onClick = onPauseClick,
-            enabled = isTimerRunning && !isPaused
-        ) {
-            Text(text = "Пауза")
+                // Кнопка "Продолжить" (активна только если на паузе)
+                Button(
+                    onClick = onStartClick,
+                    enabled = isPaused
+                ) {
+                    Text(text = "Продолжить")
+                }
+            }
         }
-
-        // Кнопка "Продолжить" (активна только если на паузе)
-        Button(
-            onClick = onStartClick,
-            enabled = isPaused
-        ) {
-            Text(text = "Продолжить")
-        }
-    }
 }
 
 @Preview(showBackground = true)
