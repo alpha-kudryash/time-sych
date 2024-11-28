@@ -3,6 +3,9 @@ package com.example.timesych
 import android.os.Bundle
 import android.view.KeyEvent
 import android.media.AudioManager
+import android.os.Build
+import android.os.VibrationEffect
+import android.os.Vibrator
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
@@ -57,14 +60,36 @@ class MainActivity : ComponentActivity() {
         if (keyCode == KeyEvent.KEYCODE_VOLUME_UP) {
             if (!timerViewModel.isTimerRunning.value) {
                 timerViewModel.startTimer()
+                triggerVibrationHigh()  // Добавляем вибрацию
                 return true
             }
             if (timerViewModel.isTimerRunning.value) {
                 timerViewModel.cutOffTimer()
+                triggerVibrationLow()
                 return true
             }
         }
         return super.onKeyDown(keyCode, event)
+    }
+
+    private fun triggerVibrationHigh() {
+        val vibrator = getSystemService(VIBRATOR_SERVICE) as Vibrator
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            val effect = VibrationEffect.createOneShot(150, VibrationEffect.DEFAULT_AMPLITUDE)
+            vibrator.vibrate(effect)  // Вибрация длительностью 100 миллисекунд
+        } else {
+            vibrator.vibrate(100)  // Для старых версий Android (до API 26)
+        }
+    }
+
+    private fun triggerVibrationLow() {
+        val vibrator = getSystemService(VIBRATOR_SERVICE) as Vibrator
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            val effect = VibrationEffect.createOneShot(150, VibrationEffect.DEFAULT_AMPLITUDE)
+            vibrator.vibrate(effect)  // Вибрация длительностью 100 миллисекунд
+        } else {
+            vibrator.vibrate(100)  // Для старых версий Android (до API 26)
+        }
     }
 
     // Обработка нажатия кнопок устройства
