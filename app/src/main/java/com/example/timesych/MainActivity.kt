@@ -31,6 +31,13 @@ import androidx.compose.material3.TextField
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.unit.dp
 
+enum class State {
+    RESET,   // Состояние, когда таймер сброшен
+    RUNNING, // Состояние, когда таймер выполняется
+    PAUSED   // Состояние, когда таймер на паузе
+    //CUTOFF
+}
+
 class MainActivity : ComponentActivity() {
     private lateinit var audioManager: AudioManager
 
@@ -58,12 +65,12 @@ class MainActivity : ComponentActivity() {
     // Обработка нажатия кнопок (увеличение громкости)
     override fun onKeyDown(keyCode: Int, event: KeyEvent?): Boolean {
         if (keyCode == KeyEvent.KEYCODE_VOLUME_UP) {
-            if (!timerViewModel.isTimerRunning.value) {
+            if (timerViewModel.stateTimer.value != TimerViewModel.StateTimer.RUNNING) {
                 timerViewModel.startTimer()
                 triggerVibrationHigh()  // Добавляем вибрацию
                 return true
             }
-            if (timerViewModel.isTimerRunning.value) {
+            if (timerViewModel.stateTimer.value == TimerViewModel.StateTimer.RUNNING) {
                 timerViewModel.cutOffTimer()
                 triggerVibrationLow()
                 return true
@@ -91,25 +98,13 @@ class MainActivity : ComponentActivity() {
             vibrator.vibrate(100)  // Для старых версий Android (до API 26)
         }
     }
-
-    // Обработка нажатия кнопок устройства
-    /*override fun onKeyDown(keyCode: Int, event: KeyEvent?): Boolean {
-        // Если нажата кнопка уменьшения громкости
-        if (keyCode == KeyEvent.KEYCODE_VOLUME_DOWN) {
-            // Пауза таймера
-            timerViewModel.pauseTimer()
-            return true // Возвращаем true, чтобы не обработать событие дальше
-        }
-        return super.onKeyDown(keyCode, event)
-    }*/
 }
 
 @Composable
 fun MainScreen(modifier: Modifier = Modifier, timerViewModel: TimerViewModel) {
     // Получаем данные из ViewModel
     val currentTime by remember { timerViewModel.currentTime }
-    val isTimerRunning by remember { timerViewModel.isTimerRunning }
-    val isPaused by remember { timerViewModel.isPaused }
+    val state by remember { timerViewModel.stateTimer }
     val pausedTime by remember { timerViewModel.pausedTime } // Время при паузе
     val cutOffTime by remember { timerViewModel.cutOffTimer } // Время при отсечке
     val isCutOff by remember { timerViewModel.isCutOff } // отсечка
@@ -128,9 +123,9 @@ fun MainScreen(modifier: Modifier = Modifier, timerViewModel: TimerViewModel) {
         timerViewModel.cutOffTimer()
     }
 
-    // Обработчик нажатия кнопки Стоп
-    val onStopClick: () -> Unit = {
-        timerViewModel.stopTimer()
+    // Обработчик нажатия кнопки резет
+    val onResetClick: () -> Unit = {
+        timerViewModel.resetTimer()
     }
 
     // Обработчик нажатия кнопки Пауза
@@ -144,11 +139,9 @@ fun MainScreen(modifier: Modifier = Modifier, timerViewModel: TimerViewModel) {
     }
 
     // Логика отсчёта времени
-    LaunchedEffect(isTimerRunning, isPaused) {
-        if (isTimerRunning && !isPaused) {
-            //var elapsedTime = 0L  // Время в миллисекундах
-            while (isTimerRunning) {
-                // Форматируем время в миллисекундах (часы:минуты:секунды:миллисекунды)
+    LaunchedEffect(state) {
+        if (state == TimerViewModel.StateTimer.RUNNING) {
+            while (state == TimerViewModel.StateTimer.RUNNING) {
                 val hours = ((timerViewModel.elapsedTime.value / 1000) / 3600).toInt()
                 val minutes = ((timerViewModel.elapsedTime.value / 1000) / 60).toInt() // 60 000 мс = 1 минута
                 val seconds = ((timerViewModel.elapsedTime.value / 1000) % 60).toInt() // 1000 мс = 1 секунда
@@ -173,7 +166,7 @@ fun MainScreen(modifier: Modifier = Modifier, timerViewModel: TimerViewModel) {
     }
 
     Box(
-        modifier = modifier.fillMaxSize()
+        modifier = modifier.fillMaxSize(),
     ) {
         Column(
             modifier = Modifier
@@ -194,7 +187,8 @@ fun MainScreen(modifier: Modifier = Modifier, timerViewModel: TimerViewModel) {
                 .padding(top = 100.dp) // чтобы избежать наложения на другие элементы
                 .fillMaxWidth()
                 .padding(horizontal = 16.dp) // Добавим горизонтальные отступы
-                //.weight(1f)  // Разрешить оставшееся пространство для списка отсечек
+                .padding(bottom = 160.dp) // Добавим горизонтальные отступы
+
         ) {
             // Отображаем все времена отсечек
             if (cutOffTimes.isNotEmpty()) {
@@ -204,6 +198,7 @@ fun MainScreen(modifier: Modifier = Modifier, timerViewModel: TimerViewModel) {
                         modifier = Modifier
                             .fillMaxWidth() // Чтобы Row занимал всю ширину
                             .padding(vertical = 4.dp) // Отступы между отсечками
+
                     ) {
                     Text(
                         text = time,
@@ -237,38 +232,39 @@ fun MainScreen(modifier: Modifier = Modifier, timerViewModel: TimerViewModel) {
                     .padding(16.dp)  // Добавим отступы для красивого вида
             ) {
 
-                // Кнопка "Старт-отсечка"
+                // Кнопка "Старт-отсечка-продолжить"
                 Button(
                     onClick = {
-                        if (isTimerRunning) {
-                            onCutOffClick()  // Если таймер запущен, вызываем функцию отсечки
-                        } else {
-                            onStartClick()  // Если таймер не запущен, запускаем его
-                        }
+                        if (state == TimerViewModel.StateTimer.RUNNING) onCutOffClick()
+                        if (state == TimerViewModel.StateTimer.RESET) onStartClick()
+                        if (state == TimerViewModel.StateTimer.PAUSED) onStartClick()
                     }
                 ) {
-                    Text(text = if (isTimerRunning) "Отсечка" else "Старт")
+                    Text(text = when (state) {
+                        TimerViewModel.StateTimer.RUNNING -> "Отсечка"
+                        TimerViewModel.StateTimer.RESET -> "Старт"
+                        TimerViewModel.StateTimer.PAUSED -> "Продолжить"
+                        else -> ""
+                    })
                 }
 
-                // Кнопка "Стоп"
-                Button(
-                    onClick = onStopClick,
-                    enabled = isTimerRunning  // Кнопка "Стоп" активна только если таймер запущен
-                ) {
-                    Text(text = "Стоп")
-                }
-
-                // Кнопка "Пауза-продолжить"
+                // Кнопка "Пауза-Reset"
                 Button(
                     onClick = {
-                        if (isTimerRunning) {
-                            onPauseClick()  // Если таймер запущен, вызываем функцию паузы
-                        } else {
-                            onStartClick()  // Если таймер на паузе, запускаем его
-                        }
-                    }
+                        when (state) {
+                            TimerViewModel.StateTimer.RUNNING -> onPauseClick()
+                            TimerViewModel.StateTimer.PAUSED -> onResetClick()
+                            else -> {}
+                            }
+                        },
+                    enabled = (state != TimerViewModel.StateTimer.RESET)  // Кнопка "Reset" активна только если таймер на паузе
                 ) {
-                    Text(text = if (isTimerRunning) "Пауза" else "Продолжить")
+                    Text(text = when (state) {
+                        TimerViewModel.StateTimer.RUNNING -> "Пауза"
+                        TimerViewModel.StateTimer.RESET -> "Сброс"
+                        TimerViewModel.StateTimer.PAUSED -> "Сброс"
+                        else -> ""
+                    })
                 }
             }
         }

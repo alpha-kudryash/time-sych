@@ -4,11 +4,11 @@ import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.lifecycle.ViewModel
 
+
+
 class TimerViewModel : ViewModel() {
     // Состояние для отслеживания времени
     var currentTime = mutableStateOf("00:00:00:00")
-    var isTimerRunning = mutableStateOf(false)
-    var isPaused = mutableStateOf(false)
     var isCutOff = mutableStateOf(false) // Отсечка
     var cutOffTimer = mutableStateOf("00:00:00:00") // Время на момент отсечки
     var cutOffTimes = mutableStateListOf<String>() // Список времен при отсечке
@@ -16,13 +16,16 @@ class TimerViewModel : ViewModel() {
     var elapsedTime = mutableStateOf(0L) // Время в миллисекундах
     var currentInputTextTimer = mutableStateOf("") // Текст, который вводится в поле
     var cutOffListTextsTimer  = mutableStateListOf<String>() // Массив текста, который вводится в поле
-
-    // Запуск таймера
+    var stateTimer = mutableStateOf(StateTimer.RESET)
+    enum class StateTimer {
+        RESET,   // Состояние, когда таймер сброшен
+        RUNNING, // Состояние, когда таймер выполняется
+        PAUSED   // Состояние, когда таймер на паузе
+        //CUTOFF
+    }
     fun startTimer() {
-        if (!isTimerRunning.value) {
-            isTimerRunning.value = true
-            isPaused.value = false
-                //isCutOffTimer.value = false
+        if (stateTimer.value != StateTimer.RUNNING) {
+            stateTimer.value = StateTimer.RUNNING
         }
     }
 
@@ -42,24 +45,33 @@ class TimerViewModel : ViewModel() {
         currentInputTextTimer.value = ""
     }
 
-    // Остановка таймера
-    fun stopTimer() {
-        isTimerRunning.value = false
-        isPaused.value = false
-        currentTime.value = "00:00:00:00"
-        elapsedTime.value = 0L
+    // Сброс таймера
+    fun resetTimer() {
+        if (stateTimer.value == StateTimer.PAUSED) {
+            stateTimer.value = StateTimer.RESET
+            currentTime.value = "00:00:00:00"
+            elapsedTime.value = 0L
+            cutOffListTextsTimer.clear()
+            currentInputTextTimer.value = ""
+            cutOffTimes.clear()
+            cutOffTimer.value = "00:00:00:00"
+            isCutOff.value = false
+        }
+
     }
 
     // Пауза таймера
     fun pauseTimer() {
-        isPaused.value = true
-        isTimerRunning.value = false
-        pausedTime.value = currentTime.value // Сохраняем текущее время при паузе
+        if (stateTimer.value == StateTimer.RUNNING) {
+            stateTimer.value = StateTimer.PAUSED
+            pausedTime.value = currentTime.value // Сохраняем текущее время при паузе
+
+        }
     }
 
     // Продолжить таймер
     fun resumeTimer() {
-        isPaused.value = false
-        isTimerRunning.value = true
+        if (stateTimer.value == StateTimer.PAUSED)
+            stateTimer.value = StateTimer.RUNNING
     }
 }
