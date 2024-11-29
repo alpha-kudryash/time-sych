@@ -28,18 +28,12 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.pager.rememberPagerState
+import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.TextField
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.unit.dp
 import com.google.accompanist.pager.*
-
-enum class State {
-    RESET,   // Состояние, когда таймер сброшен
-    RUNNING, // Состояние, когда таймер выполняется
-    PAUSED   // Состояние, когда таймер на паузе
-    //CUTOFF
-}
 
 class MainActivity : ComponentActivity() {
     private lateinit var audioManager: AudioManager
@@ -57,7 +51,7 @@ class MainActivity : ComponentActivity() {
         setContent {
             TimeSychTheme {
                 Scaffold(modifier = Modifier.fillMaxSize()) { innerPadding ->
-                    MainScreen(
+                    SwipeableTabs(
                         modifier = Modifier.padding(innerPadding),
                         timerViewModel = timerViewModel
                     )
@@ -88,7 +82,7 @@ class MainActivity : ComponentActivity() {
             val effect = VibrationEffect.createOneShot(150, VibrationEffect.DEFAULT_AMPLITUDE)
             vibrator.vibrate(effect)  // Вибрация длительностью 100 миллисекунд
         } else {
-            vibrator.vibrate(100)  // Для старых версий Android (до API 26)
+            vibrator.vibrate(200)  // Для старых версий Android (до API 26)
         }
     }
 
@@ -101,6 +95,34 @@ class MainActivity : ComponentActivity() {
             vibrator.vibrate(100)  // Для старых версий Android (до API 26)
         }
     }
+}
+
+@Composable
+fun SwipeableTabs(modifier: Modifier = Modifier, timerViewModel: TimerViewModel) {
+    val pagerState = rememberPagerState() // Состояние для контроля текущей страницы
+    //val timerViewModel: TimerViewModel = viewModel() // Получаем ViewModel
+
+    // HorizontalPager для создания свайпа между вкладками
+    HorizontalPager(
+        count = 2, // Количество страниц (вкладок)
+        state = pagerState,
+        modifier = modifier.fillMaxSize()
+    ) { page ->
+        when (page) {
+            0 -> MainScreen(timerViewModel = timerViewModel)
+            1 -> SecondTab() // Вторая вкладка
+        }
+    }
+
+    // Индикатор текущей страницы (точки)
+    HorizontalPagerIndicator(
+        pagerState = pagerState,
+        modifier = Modifier
+            .padding(16.dp),
+        //.align(Alignment.BottomCenter),
+        activeColor = androidx.compose.material3.MaterialTheme.colorScheme.primary,
+        inactiveColor = androidx.compose.material3.MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f)
+    )
 }
 
 @Composable
@@ -206,8 +228,8 @@ fun MainScreen(modifier: Modifier = Modifier, timerViewModel: TimerViewModel) {
                         text = time,
                         style = androidx.compose.material3.MaterialTheme.typography.bodyLarge,
                         modifier = Modifier
-                            .padding(vertical = 4.dp) // Отступы между отсечками
-                            .padding(end = 8.dp) // Отступ между временем и дополнительным текстом
+                            .padding(vertical = 4.dp)
+                            .padding(end = 8.dp)
                     )
                     // Поле для редактирования текста
                     TextField(
@@ -272,51 +294,20 @@ fun MainScreen(modifier: Modifier = Modifier, timerViewModel: TimerViewModel) {
         }
 }
 
-@OptIn(ExperimentalPagerApi::class)
-@Composable
-fun SwipeableTabs() {
-    val pagerState = rememberPagerState() // Состояние пагера (для отслеживания текущей страницы)
-
-    // HorizontalPager для создания свайпа
-    HorizontalPager(
-        count = 2, // Количество вкладок (страниц)
-        state = pagerState, // Состояние пагера
-        modifier = Modifier.fillMaxSize()
-    ) { page ->
-        // Внутри HorizontalPager переключаем содержимое в зависимости от текущей страницы
-        when (page) {
-            0 -> FirstTab() // Первая вкладка
-            1 -> SecondTab() // Вторая вкладка
-        }
-    }
-
-    // Индикатор страниц (точки)
-    HorizontalPagerIndicator(
-        pagerState = pagerState,
-        modifier = Modifier
-            //.align(Alignment.BottomCenter)
-            .padding(16.dp),
-        activeColor = MaterialTheme.colorScheme.primary,
-        inactiveColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f)
-    )
-}
-
-@Composable
-fun FirstTab() {
-    Box(
-        modifier = Modifier.fillMaxSize(),
-        contentAlignment = Alignment.Center
-    ) {
-        Text("Это первая вкладка", style = MaterialTheme.typography.headlineMedium)
-    }
-}
-
 @Composable
 fun SecondTab() {
     Box(
         modifier = Modifier.fillMaxSize(),
         contentAlignment = Alignment.Center
     ) {
-        Text("Это вторая вкладка", style = MaterialTheme.typography.headlineMedium)
+        Text("Это вторая вкладка", style = androidx.compose.material3.MaterialTheme.typography.headlineMedium)
     }
 }
+
+/*@Preview(showBackground = true)
+@Composable
+fun DefaultPreview() {
+    SwipeTheme {
+        SwipeableTabs()
+    }
+}*/
