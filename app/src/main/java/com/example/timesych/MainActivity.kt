@@ -31,13 +31,6 @@ import androidx.compose.material3.TextField
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.unit.dp
 
-enum class State {
-    RESET,   // Состояние, когда таймер сброшен
-    RUNNING, // Состояние, когда таймер выполняется
-    PAUSED   // Состояние, когда таймер на паузе
-    //CUTOFF
-}
-
 class MainActivity : ComponentActivity() {
     private lateinit var audioManager: AudioManager
 
