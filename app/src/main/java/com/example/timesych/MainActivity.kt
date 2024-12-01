@@ -1,5 +1,6 @@
 package com.example.timesych
 
+import android.content.Context
 import android.os.Bundle
 import android.view.KeyEvent
 import android.media.AudioManager
@@ -16,28 +17,26 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.tooling.preview.Preview
 import com.example.timesych.ui.theme.TimeSychTheme
 import kotlinx.coroutines.delay
-import java.text.SimpleDateFormat
-import java.util.*
 import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.mutableStateListOf
 import androidx.activity.viewModels
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.itemsIndexed
-import androidx.compose.foundation.pager.rememberPagerState
-import androidx.compose.foundation.pager.HorizontalPager
-import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.TextField
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.unit.dp
+import com.google.accompanist.pager.*
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.padding
+import androidx.compose.ui.platform.LocalContext
+import androidx.lifecycle.lifecycleScope
+import androidx.lifecycle.viewModelScope
+import kotlinx.coroutines.launch
 
 class MainActivity : ComponentActivity() {
     private lateinit var audioManager: AudioManager
 
-    // Получаем ViewModel
     private val timerViewModel: TimerViewModel by viewModels()
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -46,6 +45,11 @@ class MainActivity : ComponentActivity() {
 
         // Инициализация AudioManager
         audioManager = getSystemService(AUDIO_SERVICE) as AudioManager
+
+        // Инициализируем базу данных асинхронно
+        lifecycleScope.launch {
+            //DatabaseHelper.initialize(applicationContext)
+        }
 
         setContent {
             TimeSychTheme {
@@ -99,6 +103,7 @@ class MainActivity : ComponentActivity() {
 @Composable
 fun SwipeableTabs(modifier: Modifier = Modifier, timerViewModel: TimerViewModel) {
     val pagerState = rememberPagerState() // Состояние для контроля текущей страницы
+    //val context = LocalContext.current // Получаем текущий контекст
     //val timerViewModel: TimerViewModel = viewModel() // Получаем ViewModel
 
     // HorizontalPager для создания свайпа между вкладками
@@ -131,7 +136,6 @@ fun MainScreen(modifier: Modifier = Modifier, timerViewModel: TimerViewModel) {
     val state by remember { timerViewModel.stateTimer }
     val pausedTime by remember { timerViewModel.pausedTime } // Время при паузе
     val cutOffTime by remember { timerViewModel.cutOffTimer } // Время при отсечке
-    val isCutOff by remember { timerViewModel.isCutOff } // отсечка
     val cutOffTimes = timerViewModel.cutOffTimes // Список отсечек (не используем remember)
     val elapsedTime by remember { timerViewModel.elapsedTime }
     val inputText by remember { timerViewModel.currentInputTextTimer } // Получаем текст из ViewModel
@@ -162,30 +166,27 @@ fun MainScreen(modifier: Modifier = Modifier, timerViewModel: TimerViewModel) {
         timerViewModel.resumeTimer()
     }
 
-    // Логика отсчёта времени
-    LaunchedEffect(state) {
-        if (state == TimerViewModel.StateTimer.RUNNING) {
-            while (state == TimerViewModel.StateTimer.RUNNING) {
-                val hours = ((timerViewModel.elapsedTime.value / 1000) / 3600).toInt()
-                val minutes = ((timerViewModel.elapsedTime.value / 1000) / 60).toInt() // 60 000 мс = 1 минута
-                val seconds = ((timerViewModel.elapsedTime.value / 1000) % 60).toInt() // 1000 мс = 1 секунда
-                val milliseconds = (timerViewModel.elapsedTime.value % 1000).toInt()
-
-                // Обновляем текущие значения времени
-                timerViewModel.currentTime.value = String.format("%02d:%02d:%02d:%02d", hours, minutes, seconds, milliseconds / 10)
-
-                // Задержка на 50 миллисекунд для обновления времени
-                delay(50)  // Интервал обновления (50 мс = 0.05 сек)
-                timerViewModel.elapsedTime.value += 50  // Увеличиваем время на 50 миллисекунд
-            }
-        }
+    // Обработчик нажатия кнопки Сохранить и сбросить
+    val onSaveResetClick: () -> Unit = {
+        //timerViewModel.viewModelScope.launch {
+        //DatabaseHelper.saveCutOffTime(context, cutOffTimes, cutOffListTexts)}
+        timerViewModel.saveResetTimer()
     }
 
-    // Эффект, который срабатывает, когда isCutOff == true, и сбрасывает его на false после отображения
-    LaunchedEffect(isCutOff) {
-        if (isCutOff) {
-            //delay(2000) // Задержка для отображения времени отсечки (2 секунды)
-            timerViewModel.isCutOff.value = false // Сбросить отсечку
+    // Логика отсчёта времени
+    LaunchedEffect(state) {
+        while (state == TimerViewModel.StateTimer.RUNNING) {
+            val hours = ((timerViewModel.elapsedTime.value / 1000) / 3600).toInt()
+            val minutes = ((timerViewModel.elapsedTime.value / 1000) / 60).toInt() // 60 000 мс = 1 минута
+            val seconds = ((timerViewModel.elapsedTime.value / 1000) % 60).toInt() // 1000 мс = 1 секунда
+            val milliseconds = (timerViewModel.elapsedTime.value % 1000).toInt()
+
+            // Обновляем текущие значения времени
+            timerViewModel.currentTime.value = String.format("%02d:%02d:%02d:%02d", hours, minutes, seconds, milliseconds / 10)
+
+            // Задержка на 50 миллисекунд для обновления времени
+            delay(50)  // Интервал обновления (50 мс = 0.05 сек)
+            timerViewModel.elapsedTime.value += 50  // Увеличиваем время на 50 миллисекунд
         }
     }
 
@@ -231,7 +232,6 @@ fun MainScreen(modifier: Modifier = Modifier, timerViewModel: TimerViewModel) {
                             .padding(vertical = 4.dp)
                             .padding(end = 8.dp)
                     )
-                    // Поле для редактирования текста
                     TextField(
                         value = localInputText,
                         onValueChange = { localInputText = it },
