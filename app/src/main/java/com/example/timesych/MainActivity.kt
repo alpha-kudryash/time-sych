@@ -32,13 +32,18 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.runtime.livedata.observeAsState
 import androidx.lifecycle.lifecycleScope
 import kotlinx.coroutines.launch
 
+enum class VibrationType {
+    HIGH, LOW
+}
+
 class MainActivity : ComponentActivity() {
     private lateinit var audioManager: AudioManager
-
     private val timerViewModel: TimerViewModel by viewModels()
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
@@ -48,11 +53,10 @@ class MainActivity : ComponentActivity() {
         lifecycleScope.launch {
             try {
                 timerViewModel.initDBStart()
+                if (timerViewModel.isDBNotNull) timerViewModel.fetchCutOffTimes()
             } catch (e: Exception) {
                 Log.e("MainActivity", "Error starting timer: ${e.message}")
             }
-            if (timerViewModel.isDBNotNull)
-                timerViewModel.fetchCutOffTimes()
         }
 
         setContent {
@@ -67,54 +71,47 @@ class MainActivity : ComponentActivity() {
         }
     }
 
-    // Обработка нажатия кнопок (увеличение громкости)
     override fun onKeyDown(keyCode: Int, event: KeyEvent?): Boolean {
-        if (keyCode == KeyEvent.KEYCODE_VOLUME_UP) {
-            if (timerViewModel.stateTimer.value != TimerViewModel.StateTimer.RUNNING) {
-                lifecycleScope.launch {
-                    try {
-                        timerViewModel.startTimer()
-                    } catch (e: Exception) {
-                        Log.e("MainActivity", "Error starting timer: ${e.message}")
+        when (keyCode) {
+            KeyEvent.KEYCODE_VOLUME_UP -> {
+                if (timerViewModel.stateTimer.value != TimerViewModel.StateTimer.RUNNING) {
+                    lifecycleScope.launch {
+                        try {
+                            timerViewModel.startStopwatch()
+                        } catch (e: Exception) {
+                            Log.e("MainActivity", "Error starting timer: ${e.message}")
+                        }
                     }
+                    triggerVibration(VibrationType.HIGH)
+                    return true
+                } else {
+                    timerViewModel.cutOffStopwatch()
+                    triggerVibration(VibrationType.LOW)
+                    return true
                 }
-                triggerVibrationHigh()  // Добавляем вибрацию
-                return true
-            }
-            if (timerViewModel.stateTimer.value == TimerViewModel.StateTimer.RUNNING) {
-                timerViewModel.cutOffTimer()
-                triggerVibrationLow()
-                return true
             }
         }
         return super.onKeyDown(keyCode, event)
     }
 
-    private fun triggerVibrationHigh() {
+    private fun triggerVibration(type: VibrationType) {
         val vibrator = getSystemService(VIBRATOR_SERVICE) as Vibrator
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            val effect = VibrationEffect.createOneShot(150, VibrationEffect.DEFAULT_AMPLITUDE)
-            vibrator.vibrate(effect)  // Вибрация длительностью 100 миллисекунд
-        } else {
-            vibrator.vibrate(200)  // Для старых версий Android (до API 26)
+        val vibrationDuration = when (type) {
+            VibrationType.HIGH -> 200
+            VibrationType.LOW -> 100
         }
-    }
-
-    private fun triggerVibrationLow() {
-        val vibrator = getSystemService(VIBRATOR_SERVICE) as Vibrator
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            val effect = VibrationEffect.createOneShot(150, VibrationEffect.DEFAULT_AMPLITUDE)
-            vibrator.vibrate(effect)  // Вибрация длительностью 100 миллисекунд
+            val effect = VibrationEffect.createOneShot(vibrationDuration.toLong(), VibrationEffect.DEFAULT_AMPLITUDE)
+            vibrator.vibrate(effect)
         } else {
-            vibrator.vibrate(100)  // Для старых версий Android (до API 26)
+            vibrator.vibrate(vibrationDuration.toLong())
         }
     }
 }
 
 @Composable
 fun SwipeableTabs(modifier: Modifier = Modifier, timerViewModel: TimerViewModel) {
-    val pagerState = rememberPagerState() // Состояние для контроля текущей страницы
-    //val context = LocalContext.current // Получаем текущий контекст
+    val pagerState = rememberPagerState()
 
     // HorizontalPager для создания свайпа между вкладками
     HorizontalPager(
@@ -133,7 +130,7 @@ fun SwipeableTabs(modifier: Modifier = Modifier, timerViewModel: TimerViewModel)
         pagerState = pagerState,
         modifier = Modifier
             .padding(16.dp),
-        //.align(Alignment.BottomCenter),
+            //.align(Alignment.BottomCenter),
         activeColor = androidx.compose.material3.MaterialTheme.colorScheme.primary,
         inactiveColor = androidx.compose.material3.MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f)
     )
@@ -141,53 +138,28 @@ fun SwipeableTabs(modifier: Modifier = Modifier, timerViewModel: TimerViewModel)
 
 @Composable
 fun MainScreen(modifier: Modifier = Modifier, timerViewModel: TimerViewModel) {
-    // Получаем данные из ViewModel
-    val currentTime by remember { timerViewModel.currentTime }
     val state by remember { timerViewModel.stateTimer }
-    val pausedTime by remember { timerViewModel.pausedTime } // Время при паузе
-    val cutOffTime by remember { timerViewModel.cutOffTimer } // Время при отсечке
-    val cutOffTimes = timerViewModel.cutOffTimesList // Список отсечек (не используем remember)
-    val elapsedTime by remember { timerViewModel.elapsedTime }
-    val inputText by remember { timerViewModel.currentInputTextTimer } // Получаем текст из ViewModel
+    val cutOffTimes = timerViewModel.cutOffTimesList
+    val elapsedTime by timerViewModel.elapsedTime.observeAsState(0L)
+
     val cutOffListTexts = timerViewModel.cutOffListTextsTimer
     val coroutineScope = rememberCoroutineScope()
     val lazyListState = rememberLazyListState()
+    val timeText = remember { mutableStateOf("00:00:00:00") }
 
-    // Обработчик нажатия кнопки Старт
     val onStartClick: () -> Unit = {
         coroutineScope.launch {
             try {
-                timerViewModel.startTimer()
+                timerViewModel.startStopwatch()
             } catch (e: Exception) {
                 Log.e("MainScreen", "Error starting timer: ${e.message}")
             }
         }
     }
 
-    // Обработчик нажатия кнопки Отсечка
-    val onCutOffClick: () -> Unit = {
-        timerViewModel.cutOffTimer()
-    }
-
-    // Обработчик нажатия кнопки резет
-    val onResetClick: () -> Unit = {
-        timerViewModel.resetTimer()
-    }
-
-    // Обработчик нажатия кнопки Пауза
-    val onPauseClick: () -> Unit = {
-        timerViewModel.pauseTimer()
-    }
-
-    // Обработчик нажатия кнопки Продолжить
-    val onResumeClick: () -> Unit = {
-        timerViewModel.resumeTimer()
-    }
-
-    // Обработчик нажатия кнопки Сохранить и сбросить
-    val onSaveResetClick: () -> Unit = {
-        timerViewModel.saveResetTimer()
-    }
+    val onCutOffClick: () -> Unit = { timerViewModel.cutOffStopwatch() }
+    val onResetClick: () -> Unit = { timerViewModel.resetStopwatch() }
+    val onPauseClick: () -> Unit = { timerViewModel.pauseStopwatch() }
 
     // Обработчик нажатия кнопки Сохранить и сбросить
     val onSaveTimeClick: () -> Unit = {
@@ -203,17 +175,15 @@ fun MainScreen(modifier: Modifier = Modifier, timerViewModel: TimerViewModel) {
     // Логика отсчёта времени
     LaunchedEffect(state) {
         while (state == TimerViewModel.StateTimer.RUNNING) {
-            val hours = ((timerViewModel.elapsedTime.value / 1000) / 3600).toInt()
-            val minutes = ((timerViewModel.elapsedTime.value / 1000) / 60).toInt() // 60 000 мс = 1 минута
-            val seconds = ((timerViewModel.elapsedTime.value / 1000) % 60).toInt() // 1000 мс = 1 секунда
-            val milliseconds = (timerViewModel.elapsedTime.value % 1000).toInt()
+            delay(10)  // Задержка 10 миллисекунд
+            val currentMilliseconds = (elapsedTime % 1000) / 10
+            val currentSeconds = ((elapsedTime / 1000) % 60).toInt()
+            val currentMinutes = (elapsedTime / 60000) % 60
+            val currentHours = (elapsedTime / 3600000) % 24
 
             // Обновляем текущие значения времени
-            timerViewModel.currentTime.value = String.format("%02d:%02d:%02d:%02d", hours, minutes, seconds, milliseconds / 10)
+            timeText.value = String.format("%02d:%02d:%02d:%02d", currentHours, currentMinutes, currentSeconds, currentMilliseconds)
 
-            // Задержка на 50 миллисекунд для обновления времени
-            delay(50)  // Интервал обновления (50 мс = 0.05 сек)
-            timerViewModel.elapsedTime.value += 50  // Увеличиваем время на 50 миллисекунд
         }
 
     }
@@ -236,7 +206,7 @@ fun MainScreen(modifier: Modifier = Modifier, timerViewModel: TimerViewModel) {
         ) {
             // Текст с временем
             Text(
-                text = currentTime,
+                text = timeText.value,
                 style = androidx.compose.material3.MaterialTheme.typography.headlineLarge,
             )
         }

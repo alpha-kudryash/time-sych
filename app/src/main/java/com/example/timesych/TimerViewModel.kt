@@ -1,12 +1,17 @@
 package com.example.timesych
 
 import android.app.Application
+import android.os.Handler
+import android.os.Looper
+import android.os.SystemClock
 import android.util.Log
 import androidx.compose.runtime.MutableState
 import androidx.compose.runtime.State
 import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.lifecycle.AndroidViewModel
+import androidx.lifecycle.LiveData
+import androidx.lifecycle.MutableLiveData
 import androidx.lifecycle.viewModelScope
 import androidx.room.Room
 import kotlinx.coroutines.launch
@@ -17,11 +22,8 @@ class TimerViewModel(private val application: Application) : AndroidViewModel(ap
     private val _cutOffTimes = mutableListOf<CutOffTime>()
     val cutOffTimes: List<CutOffTime> get() = _cutOffTimes
 
-    var currentTime = mutableStateOf("00:00:00:00")
     var cutOffTimer = mutableStateOf("00:00:00:00") // Время на момент отсечки
     var cutOffTimesList = mutableStateListOf<String>() // Список времен при отсечке
-    var pausedTime = mutableStateOf("00:00:00:00") // Время на момент паузы
-    var elapsedTime = mutableStateOf(0L) // Время в миллисекундах
     var currentInputTextTimer = mutableStateOf("") // Текст, который вводится в поле
     var cutOffListTextsTimer  = mutableStateListOf<String>() // Массив текста, который вводится в поле
     var stateTimer = mutableStateOf(StateTimer.RESET)
@@ -35,6 +37,13 @@ class TimerViewModel(private val application: Application) : AndroidViewModel(ap
         RUNNING,
         PAUSED
     }
+
+    private val _elapsedTime = MutableLiveData<Long>(0L)
+    val elapsedTime: LiveData<Long> = _elapsedTime
+    private var startTime = 0L
+    private var handler = Handler(Looper.getMainLooper())
+    private var runnable: Runnable? = null
+
     private var db: AppDatabase? = null
     private var cutOffDao: CutOffDao? = null
 
@@ -113,53 +122,63 @@ class TimerViewModel(private val application: Application) : AndroidViewModel(ap
         if (isDBNotNull) deleteAllInDB()
     }
 
-    suspend fun startTimer() {
-        if (stateTimer.value != StateTimer.RUNNING) {
-            stateTimer.value = StateTimer.RUNNING
+    fun startStopwatch() {
+        if (stateTimer.value == StateTimer.RESET) {
+            startTime = SystemClock.elapsedRealtime() // получаем время, прошедшее с начала работы устройства
+        } else {
+            val elapsedTime = _elapsedTime.value ?: 0L
+            startTime = SystemClock.elapsedRealtime() - (_elapsedTime.value ?: 0L)
+        }
+        runnable = object : Runnable {
+            override fun run() {
+                val elapsedMillis = SystemClock.elapsedRealtime() - startTime
+                _elapsedTime.postValue(elapsedMillis)
+                handler.postDelayed(this, 10) // Обновляем каждую 1/10 секунды
+            }
+        }
+        handler.post(runnable!!) // Запускаем обновление времени
+        stateTimer.value = StateTimer.RUNNING
+    }
+
+    fun pauseStopwatch() {
+        handler.removeCallbacks(runnable!!) // Останавливаем обновление
+        if (stateTimer.value == StateTimer.RUNNING) {
+            stateTimer.value = StateTimer.PAUSED
+        }
+
+    }
+
+    fun resetStopwatch() {
+        if (stateTimer.value == StateTimer.PAUSED) {
+            startTime = SystemClock.elapsedRealtime()
+            stateTimer.value = StateTimer.RESET
+            cutOffListTextsTimer.clear()
+            currentInputTextTimer.value = ""
+            cutOffTimesList.clear()
+            _elapsedTime.postValue(0L)
         }
     }
 
-    // Обновить текст для определенной отсечки по индексу
-    fun updateCutOffText(index: Int, newText: String) {
-        if (index >= 0 && index < cutOffListTextsTimer.size) {
-            cutOffListTextsTimer[index] = newText
-        }
-    }
-
-    // Отсечка
-    fun cutOffTimer() {
-        cutOffTimer.value = currentTime.value // Сохраняем текущее время
-        cutOffTimesList.add(currentTime.value) // Добавляем текущее время в список отсечек
+    fun cutOffStopwatch() {
+        val currentCutOffTime = _elapsedTime.value ?: 0L
+        val formattedTime = String.format(
+            "%02d:%02d:%02d:%02d",
+            (currentCutOffTime / 3600000) % 24,
+            (currentCutOffTime / 60000) % 60,
+            (currentCutOffTime / 1000) % 60,
+            currentCutOffTime % 1000 / 10
+        )
+        cutOffTimer.value = formattedTime
+        cutOffTimesList.add(formattedTime)
         cutOffListTextsTimer.add(currentInputTextTimer.value)
         currentInputTextTimer.value = ""
     }
 
-    // Сброс таймера
-    fun resetTimer() {
-        if (stateTimer.value == StateTimer.PAUSED) {
-            stateTimer.value = StateTimer.RESET
-            currentTime.value = "00:00:00:00"
-            elapsedTime.value = 0L
-            cutOffListTextsTimer.clear()
-            currentInputTextTimer.value = ""
-            cutOffTimesList.clear()
-            cutOffTimer.value = "00:00:00:00"
+
+    fun updateCutOffText(index: Int, newText: String) {
+        if (index >= 0 && index < cutOffListTextsTimer.size) {
+            cutOffListTextsTimer[index] = newText
         }
-
-    }
-
-    // Сбросить таймер
-    fun saveResetTimer() {
-        if (stateTimer.value == StateTimer.PAUSED) {
-            stateTimer.value = StateTimer.RESET
-            currentTime.value = "00:00:00:00"
-            elapsedTime.value = 0L
-            cutOffListTextsTimer.clear()
-            currentInputTextTimer.value = ""
-            cutOffTimesList.clear()
-            cutOffTimer.value = "00:00:00:00"
-        }
-
     }
 
     // Сохранить таймер
@@ -172,18 +191,18 @@ class TimerViewModel(private val application: Application) : AndroidViewModel(ap
 
     }
 
-    // Пауза таймера
-    fun pauseTimer() {
-        if (stateTimer.value == StateTimer.RUNNING) {
-            stateTimer.value = StateTimer.PAUSED
-            pausedTime.value = currentTime.value
-
-        }
-    }
-
-    // Продолжить таймер
-    fun resumeTimer() {
-        if (stateTimer.value == StateTimer.PAUSED)
+    fun resumeStopwatch() {
+        if (stateTimer.value == StateTimer.PAUSED) {
             stateTimer.value = StateTimer.RUNNING
+            startTime = System.currentTimeMillis() - (_elapsedTime.value ?: 0L)
+            runnable = object : Runnable {
+                override fun run() {
+                    val elapsedMillis = SystemClock.elapsedRealtime() - startTime
+                    _elapsedTime.postValue(elapsedMillis) // Обновляем время
+                    handler.postDelayed(this, 10) // Обновляем каждую 1/10 секунды
+                }
+            }
+            handler.post(runnable!!) // Запускаем Runnable
+        }
     }
 }
