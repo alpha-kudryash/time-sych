@@ -1,25 +1,22 @@
 package com.example.timesych
 
 import android.app.Application
-import android.content.Context
 import android.util.Log
+import androidx.compose.runtime.MutableState
+import androidx.compose.runtime.State
 import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.lifecycle.AndroidViewModel
-import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import androidx.room.Room
-import androidx.compose.runtime.State
 import kotlinx.coroutines.launch
 
 
 class TimerViewModel(private val application: Application) : AndroidViewModel(application)  {
-    private val context = getApplication<Application>().applicationContext
     private val appContext = application.applicationContext
     private val _cutOffTimes = mutableListOf<CutOffTime>()
     val cutOffTimes: List<CutOffTime> get() = _cutOffTimes
 
-    // Состояние для отслеживания времени
     var currentTime = mutableStateOf("00:00:00:00")
     var cutOffTimer = mutableStateOf("00:00:00:00") // Время на момент отсечки
     var cutOffTimesList = mutableStateListOf<String>() // Список времен при отсечке
@@ -28,6 +25,11 @@ class TimerViewModel(private val application: Application) : AndroidViewModel(ap
     var currentInputTextTimer = mutableStateOf("") // Текст, который вводится в поле
     var cutOffListTextsTimer  = mutableStateListOf<String>() // Массив текста, который вводится в поле
     var stateTimer = mutableStateOf(StateTimer.RESET)
+    var isDBNotNull = false
+    var isDBNotEmpty = false
+    private var _currentListNumber: MutableState<Int> = mutableStateOf(1)
+    private val currentListNumber: State<Int> get() = _currentListNumber
+
     enum class StateTimer {
         RESET,
         RUNNING,
@@ -44,51 +46,77 @@ class TimerViewModel(private val application: Application) : AndroidViewModel(ap
                 "cutofftimes.db"
             ).build()
             cutOffDao = db?.cutOffDao()
+            isDBNotNull = true
         }
+        _currentListNumber.value = cutOffDao?.getMaxListNumber()?.plus(1) ?: 1
+        if (currentListNumber.value == 1) isDBNotEmpty = false
+        else isDBNotEmpty = true
     }
 
     suspend fun initDBStart() {
         initializeDatabase()
     }
 
-    private suspend fun addCutOffTimesToDatabase() {
-        if (cutOffDao == null) {
-            Log.e("Database", "DAO is not initialized")
-            return
-        }
-        cutOffTimesList.forEachIndexed { index, time ->
-            val cutOffText = cutOffListTextsTimer.getOrNull(index) ?: ""
+    private suspend fun addAllCutOffTimesToDB() {
+        if (isDBNotNull) {
+            val nextListNumber = currentListNumber.value
+            if (cutOffDao?.getMaxListNumber() != nextListNumber) {
+                cutOffTimesList.forEachIndexed { index, time ->
+                    val cutOffText = cutOffListTextsTimer.getOrNull(index) ?: ""
+                    val cutOffTime = CutOffTime(
+                        id = 0,  // id будет сгенерирован автоматически
+                        listNumber = nextListNumber,
+                        cutOffTime = time,
+                        cutOffText = cutOffText
+                    )
 
-            // Создаем объект CutOffTime для каждого элемента
-            val cutOffTime = CutOffTime(
-                id = 0,  // id будет сгенерирован автоматически
-                listNumber = index + 1,  // Порядковый номер списка
-                cutOffTime = time,
-                cutOffText = cutOffText
-            )
+                    cutOffDao?.insert(cutOffTime) ?: Log.e("Database", "cutOffDao is null")
+                }
+            } else {
+                cutOffDao?.deleteByListNumber(nextListNumber)
+                cutOffTimesList.forEachIndexed { index, time ->
+                    val cutOffText = cutOffListTextsTimer.getOrNull(index) ?: ""
+                    val cutOffTime = CutOffTime(
+                        id = 0,
+                        listNumber = nextListNumber,
+                        cutOffTime = time,
+                        cutOffText = cutOffText
+                    )
 
-            cutOffDao?.insert(cutOffTime) ?: Log.e("Database", "cutOffDao is null")
+                    cutOffDao?.insert(cutOffTime) ?: Log.e("Database", "cutOffDao is null")
+                }
+            }
+            isDBNotEmpty = true
+            fetchCutOffTimes()
         }
-        fetchCutOffTimes()
+    }
+
+    private suspend fun deleteAllInDB() {
+        if (isDBNotNull) {
+            cutOffDao?.deleteAll()
+            _currentListNumber.value = cutOffDao?.getMaxListNumber()?.plus(1) ?: 1
+            isDBNotEmpty = false
+            fetchCutOffTimes()
+        }
     }
 
     suspend fun fetchCutOffTimes() {
         _cutOffTimes.clear()  // Очищаем старые данные
-        val cutOffList = cutOffDao?.getAll()
-
-        // Добавляем данные в список, если они не null
-        if (cutOffList != null) {
+        if (isDBNotNull) {
+            val cutOffList = cutOffDao?.getAll() ?: emptyList()
             _cutOffTimes.addAll(cutOffList)  // Добавляем в список, если данные не null
-        } else {
-            Log.e("TimerViewModel", "Failed to fetch cut-off times: data is null")
-        }
+            }
+
+    }
+
+    suspend fun deleteAll() {
+        if (isDBNotNull) deleteAllInDB()
     }
 
     suspend fun startTimer() {
         if (stateTimer.value != StateTimer.RUNNING) {
             stateTimer.value = StateTimer.RUNNING
         }
-        //initializeDatabase()
     }
 
     // Обновить текст для определенной отсечки по индексу
@@ -138,7 +166,7 @@ class TimerViewModel(private val application: Application) : AndroidViewModel(ap
     suspend fun saveTime() {
         if (stateTimer.value != StateTimer.RESET) {
             viewModelScope.launch {
-                addCutOffTimesToDatabase()
+                addAllCutOffTimesToDB()
             }
         }
 

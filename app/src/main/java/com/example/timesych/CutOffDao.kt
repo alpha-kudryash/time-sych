@@ -4,7 +4,6 @@ import androidx.room.Dao
 import androidx.room.Delete
 import androidx.room.Insert
 import androidx.room.Query
-import androidx.room.Update
 
 @Dao
 interface CutOffDao {
@@ -25,6 +24,15 @@ interface CutOffDao {
 
     @Query("SELECT * FROM cutoff_times")
     public abstract suspend fun getAll(): List<CutOffTime>
+
+    @Query("SELECT MAX(number) FROM cutoff_times")
+    suspend fun getMaxListNumber(): Int?
+
+    @Query("DELETE FROM cutoff_times WHERE number = :listNumber")
+    suspend fun deleteByListNumber(listNumber: Int)
+
+    @Query("DELETE FROM cutoff_times")
+    suspend fun deleteAll()
 //
 //    // Обновить текст для конкретной отсечки
 //    @Update

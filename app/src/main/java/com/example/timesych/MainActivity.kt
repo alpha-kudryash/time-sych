@@ -1,7 +1,5 @@
 package com.example.timesych
 
-import android.app.Application
-import android.content.Context
 import android.os.Bundle
 import android.view.KeyEvent
 import android.media.AudioManager
@@ -32,18 +30,15 @@ import com.google.accompanist.pager.*
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.ui.platform.LocalContext
 import androidx.lifecycle.lifecycleScope
-import androidx.lifecycle.viewModelScope
-import androidx.room.Room
 import kotlinx.coroutines.launch
 
 class MainActivity : ComponentActivity() {
     private lateinit var audioManager: AudioManager
 
     private val timerViewModel: TimerViewModel by viewModels()
-
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
@@ -56,6 +51,8 @@ class MainActivity : ComponentActivity() {
             } catch (e: Exception) {
                 Log.e("MainActivity", "Error starting timer: ${e.message}")
             }
+            if (timerViewModel.isDBNotNull)
+                timerViewModel.fetchCutOffTimes()
         }
 
         setContent {
@@ -127,7 +124,7 @@ fun SwipeableTabs(modifier: Modifier = Modifier, timerViewModel: TimerViewModel)
     ) { page ->
         when (page) {
             0 -> MainScreen(timerViewModel = timerViewModel)
-            1 -> SecondTab(timerViewModel = timerViewModel) // Вторая вкладка
+            1 -> SecondTab(timerViewModel = timerViewModel)
         }
     }
 
@@ -154,6 +151,7 @@ fun MainScreen(modifier: Modifier = Modifier, timerViewModel: TimerViewModel) {
     val inputText by remember { timerViewModel.currentInputTextTimer } // Получаем текст из ViewModel
     val cutOffListTexts = timerViewModel.cutOffListTextsTimer
     val coroutineScope = rememberCoroutineScope()
+    val lazyListState = rememberLazyListState()
 
     // Обработчик нажатия кнопки Старт
     val onStartClick: () -> Unit = {
@@ -188,8 +186,6 @@ fun MainScreen(modifier: Modifier = Modifier, timerViewModel: TimerViewModel) {
 
     // Обработчик нажатия кнопки Сохранить и сбросить
     val onSaveResetClick: () -> Unit = {
-        //timerViewModel.viewModelScope.launch {
-        //DatabaseHelper.saveCutOffTime(context, cutOffTimes, cutOffListTexts)}
         timerViewModel.saveResetTimer()
     }
 
@@ -202,9 +198,6 @@ fun MainScreen(modifier: Modifier = Modifier, timerViewModel: TimerViewModel) {
                 Log.e("MainScreen", "Error starting timer: ${e.message}")
             }
         }
-        //timerViewModel.viewModelScope.launch {
-        //DatabaseHelper.saveCutOffTime(context, cutOffTimes, cutOffListTexts)}
-
     }
 
     // Логика отсчёта времени
@@ -221,6 +214,13 @@ fun MainScreen(modifier: Modifier = Modifier, timerViewModel: TimerViewModel) {
             // Задержка на 50 миллисекунд для обновления времени
             delay(50)  // Интервал обновления (50 мс = 0.05 сек)
             timerViewModel.elapsedTime.value += 50  // Увеличиваем время на 50 миллисекунд
+        }
+
+    }
+
+    LaunchedEffect(cutOffTimes.size) {
+        if (cutOffTimes.isNotEmpty()) {
+            lazyListState.animateScrollToItem(cutOffTimes.size - 1)
         }
     }
 
@@ -241,6 +241,7 @@ fun MainScreen(modifier: Modifier = Modifier, timerViewModel: TimerViewModel) {
             )
         }
         LazyColumn(
+            state = lazyListState,
             modifier = Modifier
                 .align(Alignment.TopCenter)
                 .padding(top = 100.dp) // чтобы избежать наложения на другие элементы
@@ -268,7 +269,9 @@ fun MainScreen(modifier: Modifier = Modifier, timerViewModel: TimerViewModel) {
                     )
                     TextField(
                         value = localInputText,
-                        onValueChange = { localInputText = it },
+                        onValueChange = {
+                            localInputText = it
+                            timerViewModel.updateCutOffText(index, localInputText)},
                         modifier = Modifier
                             .weight(1f)
                             .padding(vertical = 4.dp)
@@ -356,40 +359,96 @@ fun MainScreen(modifier: Modifier = Modifier, timerViewModel: TimerViewModel) {
 
 @Composable
 fun SecondTab(modifier: Modifier = Modifier, timerViewModel: TimerViewModel) {
+    val coroutineScope = rememberCoroutineScope()
+    val lazyListState = rememberLazyListState()
+    val cutOffTimes = timerViewModel.cutOffTimes
+    val isDBNotEmpty by remember { derivedStateOf { timerViewModel.isDBNotEmpty } }
 
+    val onDeleteAllClick: () -> Unit = {
+        coroutineScope.launch {
+            try {
+                timerViewModel.deleteAll()
+            } catch (e: Exception) {
+                Log.e("MainScreen", "Error starting timer: ${e.message}")
+            }
+        }
+    }
 
     // Загружаем данные из базы при старте экрана
     LaunchedEffect(Unit) {
-        try {
-            timerViewModel.fetchCutOffTimes()  // Запускаем функцию загрузки данных
-        } catch (e: Exception) {
-            Log.e("SecondTab", "Error fetching cut off times: ${e.message}")
-        }
-    }
-    // Получаем данные из ViewModel
-    val cutOffTimes = timerViewModel.cutOffTimes
-    // Отображаем данные в LazyColumn
-    LazyColumn(
-        modifier = modifier.fillMaxSize()
-    ) {
-        items(cutOffTimes) { cutOffTime ->  // Здесь cutOffTime - это объект типа CutOffTime
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(16.dp)
-            ) {
-                // Отображаем данные из объекта CutOffTime
-                Text(
-                    text = "№${cutOffTime.listNumber} - ${cutOffTime.cutOffTime ?: "Нет времени"}",
-                    style = MaterialTheme.typography.bodyMedium
-                )
-                Spacer(modifier = Modifier.width(8.dp))
-                Text(
-                    text = cutOffTime.cutOffText ?: "Нет текста",
-                    style = MaterialTheme.typography.bodyMedium
-                )
+        coroutineScope.launch {
+            try {
+                timerViewModel.fetchCutOffTimes()  // Запускаем функцию загрузки данных
+            } catch (e: Exception) {
+                Log.e("SecondTab", "Error fetching cut off times: ${e.message}")
             }
         }
+    }
+
+    LaunchedEffect(isDBNotEmpty) {
+        coroutineScope.launch {
+            try {
+                timerViewModel.fetchCutOffTimes()  // Запускаем функцию загрузки данных
+            } catch (e: Exception) {
+                Log.e("SecondTab", "Error fetching cut off times: ${e.message}")
+            }
+        }
+
+    }
+
+    LaunchedEffect(cutOffTimes.size) {
+        if (cutOffTimes.isNotEmpty()) {
+            lazyListState.animateScrollToItem(cutOffTimes.size - 1)
+        }
+    }
+
+    Box(
+        modifier = modifier.fillMaxSize(),
+    ) {
+        // Отображаем данные в LazyColumn
+        LazyColumn(
+            state = lazyListState,
+            modifier = modifier.fillMaxSize()
+                .padding(bottom = 100.dp)
+        ) {
+            items(cutOffTimes) { cutOffTime ->  // Здесь cutOffTime - это объект типа CutOffTime
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(16.dp)
+                ) {
+                    Text(
+                        text = "№${cutOffTime.listNumber} - ${cutOffTime.cutOffTime ?: "Нет времени"}",
+                        style = MaterialTheme.typography.bodyMedium
+                    )
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text(
+                        text = cutOffTime.cutOffText ?: "Нет текста",
+                        style = MaterialTheme.typography.bodyMedium
+                    )
+                }
+            }
+        }
+        Column(
+            modifier = Modifier
+                .align(Alignment.BottomCenter)
+                .padding(16.dp)
+        ) {
+            Row(
+                modifier = Modifier
+                    .align(Alignment.CenterHorizontally)
+
+            ) {
+                // Кнопка "Удалить всё"
+                Button(
+                    onClick = {onDeleteAllClick()},
+                    enabled = isDBNotEmpty
+                ) {
+                    Text(text = "Удалить всё")
+                }
+            }
+        }
+
     }
 }
 
