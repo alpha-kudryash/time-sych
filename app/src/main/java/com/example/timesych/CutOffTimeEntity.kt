@@ -5,8 +5,9 @@ import androidx.room.Entity
 import androidx.room.PrimaryKey
 
 @Entity(tableName = "cutoff_times")
-data class CutOffTimeEntity(
-    @PrimaryKey(autoGenerate = true) val id: Long = 0,
-    @ColumnInfo(name = "times") val cutOffTimes: List<String>, // Время отсечек
-    @ColumnInfo(name = "texts") val cutOffTextsTimer: List<String> // Тексты для отсечек
+data class CutOffTime(
+    @PrimaryKey(autoGenerate = true) val id: Int,
+    @ColumnInfo(name = "number") val listNumber: Int, // номер списка
+    @ColumnInfo(name = "time") val cutOffTime: String?, // Время отсечек
+    @ColumnInfo(name = "text") val cutOffText: String?, // Тексты для отсечек
 )

@@ -1,5 +1,6 @@
 package com.example.timesych
 
+import android.app.Application
 import android.content.Context
 import android.os.Bundle
 import android.view.KeyEvent
@@ -7,6 +8,7 @@ import android.media.AudioManager
 import android.os.Build
 import android.os.VibrationEffect
 import android.os.Vibrator
+import android.util.Log
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
@@ -29,9 +31,12 @@ import androidx.compose.ui.unit.dp
 import com.google.accompanist.pager.*
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.lazy.items
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.ui.platform.LocalContext
 import androidx.lifecycle.lifecycleScope
 import androidx.lifecycle.viewModelScope
+import androidx.room.Room
 import kotlinx.coroutines.launch
 
 class MainActivity : ComponentActivity() {
@@ -43,12 +48,14 @@ class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
 
-        // Инициализация AudioManager
         audioManager = getSystemService(AUDIO_SERVICE) as AudioManager
 
-        // Инициализируем базу данных асинхронно
         lifecycleScope.launch {
-            //DatabaseHelper.initialize(applicationContext)
+            try {
+                timerViewModel.initDBStart()
+            } catch (e: Exception) {
+                Log.e("MainActivity", "Error starting timer: ${e.message}")
+            }
         }
 
         setContent {
@@ -62,11 +69,18 @@ class MainActivity : ComponentActivity() {
             }
         }
     }
+
     // Обработка нажатия кнопок (увеличение громкости)
     override fun onKeyDown(keyCode: Int, event: KeyEvent?): Boolean {
         if (keyCode == KeyEvent.KEYCODE_VOLUME_UP) {
             if (timerViewModel.stateTimer.value != TimerViewModel.StateTimer.RUNNING) {
-                timerViewModel.startTimer()
+                lifecycleScope.launch {
+                    try {
+                        timerViewModel.startTimer()
+                    } catch (e: Exception) {
+                        Log.e("MainActivity", "Error starting timer: ${e.message}")
+                    }
+                }
                 triggerVibrationHigh()  // Добавляем вибрацию
                 return true
             }
@@ -104,7 +118,6 @@ class MainActivity : ComponentActivity() {
 fun SwipeableTabs(modifier: Modifier = Modifier, timerViewModel: TimerViewModel) {
     val pagerState = rememberPagerState() // Состояние для контроля текущей страницы
     //val context = LocalContext.current // Получаем текущий контекст
-    //val timerViewModel: TimerViewModel = viewModel() // Получаем ViewModel
 
     // HorizontalPager для создания свайпа между вкладками
     HorizontalPager(
@@ -114,7 +127,7 @@ fun SwipeableTabs(modifier: Modifier = Modifier, timerViewModel: TimerViewModel)
     ) { page ->
         when (page) {
             0 -> MainScreen(timerViewModel = timerViewModel)
-            1 -> SecondTab() // Вторая вкладка
+            1 -> SecondTab(timerViewModel = timerViewModel) // Вторая вкладка
         }
     }
 
@@ -136,14 +149,21 @@ fun MainScreen(modifier: Modifier = Modifier, timerViewModel: TimerViewModel) {
     val state by remember { timerViewModel.stateTimer }
     val pausedTime by remember { timerViewModel.pausedTime } // Время при паузе
     val cutOffTime by remember { timerViewModel.cutOffTimer } // Время при отсечке
-    val cutOffTimes = timerViewModel.cutOffTimes // Список отсечек (не используем remember)
+    val cutOffTimes = timerViewModel.cutOffTimesList // Список отсечек (не используем remember)
     val elapsedTime by remember { timerViewModel.elapsedTime }
     val inputText by remember { timerViewModel.currentInputTextTimer } // Получаем текст из ViewModel
     val cutOffListTexts = timerViewModel.cutOffListTextsTimer
+    val coroutineScope = rememberCoroutineScope()
 
     // Обработчик нажатия кнопки Старт
     val onStartClick: () -> Unit = {
-        timerViewModel.startTimer()
+        coroutineScope.launch {
+            try {
+                timerViewModel.startTimer()
+            } catch (e: Exception) {
+                Log.e("MainScreen", "Error starting timer: ${e.message}")
+            }
+        }
     }
 
     // Обработчик нажатия кнопки Отсечка
@@ -171,6 +191,20 @@ fun MainScreen(modifier: Modifier = Modifier, timerViewModel: TimerViewModel) {
         //timerViewModel.viewModelScope.launch {
         //DatabaseHelper.saveCutOffTime(context, cutOffTimes, cutOffListTexts)}
         timerViewModel.saveResetTimer()
+    }
+
+    // Обработчик нажатия кнопки Сохранить и сбросить
+    val onSaveTimeClick: () -> Unit = {
+        coroutineScope.launch {
+            try {
+                timerViewModel.saveTime()
+            } catch (e: Exception) {
+                Log.e("MainScreen", "Error starting timer: ${e.message}")
+            }
+        }
+        //timerViewModel.viewModelScope.launch {
+        //DatabaseHelper.saveCutOffTime(context, cutOffTimes, cutOffListTexts)}
+
     }
 
     // Логика отсчёта времени
@@ -255,52 +289,107 @@ fun MainScreen(modifier: Modifier = Modifier, timerViewModel: TimerViewModel) {
                     .align(Alignment.BottomCenter)  // Кнопки выравниваются по центру внизу
                     .padding(16.dp)  // Добавим отступы для красивого вида
             ) {
+                Row(
+                    modifier = Modifier
+                        //.fillMaxWidth()
+                        .align(Alignment.CenterHorizontally)
 
-                // Кнопка "Старт-отсечка-продолжить"
-                Button(
-                    onClick = {
-                        if (state == TimerViewModel.StateTimer.RUNNING) onCutOffClick()
-                        if (state == TimerViewModel.StateTimer.RESET) onStartClick()
-                        if (state == TimerViewModel.StateTimer.PAUSED) onStartClick()
-                    }
                 ) {
-                    Text(text = when (state) {
-                        TimerViewModel.StateTimer.RUNNING -> "Отсечка"
-                        TimerViewModel.StateTimer.RESET -> "Старт"
-                        TimerViewModel.StateTimer.PAUSED -> "Продолжить"
-                        else -> ""
-                    })
+                    // Кнопка "Старт-отсечка-продолжить"
+                    Button(
+                        onClick = {
+                            if (state == TimerViewModel.StateTimer.RUNNING) onCutOffClick()
+                            if (state == TimerViewModel.StateTimer.RESET) onStartClick()
+                            if (state == TimerViewModel.StateTimer.PAUSED) onStartClick()
+                        }
+                    ) {
+                        Text(
+                            text = when (state) {
+                                TimerViewModel.StateTimer.RUNNING -> "Отсечка"
+                                TimerViewModel.StateTimer.RESET -> "Старт"
+                                TimerViewModel.StateTimer.PAUSED -> "Продолжить"
+                                else -> ""
+                            }
+                        )
+                    }
                 }
 
-                // Кнопка "Пауза-Reset"
-                Button(
-                    onClick = {
-                        when (state) {
-                            TimerViewModel.StateTimer.RUNNING -> onPauseClick()
-                            TimerViewModel.StateTimer.PAUSED -> onResetClick()
-                            else -> {}
+                Row(
+                    modifier = Modifier
+                        .padding(16.dp)  // Отступы для красивого вида
+                ) {
+                    // Кнопка "Пауза-Reset"
+                    Button(
+                        onClick = {
+                            when (state) {
+                                TimerViewModel.StateTimer.RUNNING -> onPauseClick()
+                                TimerViewModel.StateTimer.PAUSED -> onResetClick()
+                                else -> {}
                             }
                         },
-                    enabled = (state != TimerViewModel.StateTimer.RESET)  // Кнопка "Reset" активна только если таймер на паузе
-                ) {
-                    Text(text = when (state) {
-                        TimerViewModel.StateTimer.RUNNING -> "Пауза"
-                        TimerViewModel.StateTimer.RESET -> "Сброс"
-                        TimerViewModel.StateTimer.PAUSED -> "Сброс"
-                        else -> ""
-                    })
+                        enabled = (state != TimerViewModel.StateTimer.RESET)  // Кнопка "Reset" активна только если таймер на паузе
+                    ) {
+                        Text(
+                            text = when (state) {
+                                TimerViewModel.StateTimer.RUNNING -> "Пауза"
+                                TimerViewModel.StateTimer.RESET -> "Сброс"
+                                TimerViewModel.StateTimer.PAUSED -> "Сброс"
+                                else -> ""
+                            }
+                        )
+                    }
+                    Spacer(modifier = Modifier.width(16.dp))  // Добавление отступа между кнопками
+
+                    // Кнопка "Сохранить"
+                    Button(
+                        onClick = {
+                            if (state != TimerViewModel.StateTimer.RESET) onSaveTimeClick()
+                        },
+                        enabled = (state != TimerViewModel.StateTimer.RESET)
+                    ) {
+                        Text(text = "Сохранить")
+                    }
                 }
             }
         }
 }
 
 @Composable
-fun SecondTab() {
-    Box(
-        modifier = Modifier.fillMaxSize(),
-        contentAlignment = Alignment.Center
+fun SecondTab(modifier: Modifier = Modifier, timerViewModel: TimerViewModel) {
+
+
+    // Загружаем данные из базы при старте экрана
+    LaunchedEffect(Unit) {
+        try {
+            timerViewModel.fetchCutOffTimes()  // Запускаем функцию загрузки данных
+        } catch (e: Exception) {
+            Log.e("SecondTab", "Error fetching cut off times: ${e.message}")
+        }
+    }
+    // Получаем данные из ViewModel
+    val cutOffTimes = timerViewModel.cutOffTimes
+    // Отображаем данные в LazyColumn
+    LazyColumn(
+        modifier = modifier.fillMaxSize()
     ) {
-        Text("Это вторая вкладка", style = androidx.compose.material3.MaterialTheme.typography.headlineMedium)
+        items(cutOffTimes) { cutOffTime ->  // Здесь cutOffTime - это объект типа CutOffTime
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(16.dp)
+            ) {
+                // Отображаем данные из объекта CutOffTime
+                Text(
+                    text = "№${cutOffTime.listNumber} - ${cutOffTime.cutOffTime ?: "Нет времени"}",
+                    style = MaterialTheme.typography.bodyMedium
+                )
+                Spacer(modifier = Modifier.width(8.dp))
+                Text(
+                    text = cutOffTime.cutOffText ?: "Нет текста",
+                    style = MaterialTheme.typography.bodyMedium
+                )
+            }
+        }
     }
 }
 

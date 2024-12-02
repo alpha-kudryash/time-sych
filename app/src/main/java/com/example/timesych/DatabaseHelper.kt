@@ -35,8 +35,8 @@ object DatabaseHelper {
 
     // Сохранение времени отсечки
     suspend fun saveCutOffTime(context: Context, times: List<String>, texts: List<String>) {
-        val cutOffTime = CutOffTimeEntity(cutOffTimes = times, cutOffTextsTimer = texts)
-        database?.cutOffDao()?.insertCutOffTime(cutOffTime)
+        //val cutOffTime = CutOffTimeEntity(cutOffTimes = times, cutOffTextsTimer = texts)
+        //database?.cutOffDao()?.insertCutOffTime(cutOffTime)
     }
 
     /*// Сохранение текста отсечки

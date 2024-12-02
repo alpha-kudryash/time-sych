@@ -2,36 +2,93 @@ package com.example.timesych
 
 import android.app.Application
 import android.content.Context
+import android.util.Log
 import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
+import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import kotlinx.coroutines.Dispatchers
+import androidx.room.Room
+import androidx.compose.runtime.State
 import kotlinx.coroutines.launch
 
 
-
-class TimerViewModel : ViewModel() {
+class TimerViewModel(private val application: Application) : AndroidViewModel(application)  {
+    private val context = getApplication<Application>().applicationContext
+    private val appContext = application.applicationContext
+    private val _cutOffTimes = mutableListOf<CutOffTime>()
+    val cutOffTimes: List<CutOffTime> get() = _cutOffTimes
 
     // Состояние для отслеживания времени
     var currentTime = mutableStateOf("00:00:00:00")
     var cutOffTimer = mutableStateOf("00:00:00:00") // Время на момент отсечки
-    var cutOffTimes = mutableStateListOf<String>() // Список времен при отсечке
+    var cutOffTimesList = mutableStateListOf<String>() // Список времен при отсечке
     var pausedTime = mutableStateOf("00:00:00:00") // Время на момент паузы
     var elapsedTime = mutableStateOf(0L) // Время в миллисекундах
     var currentInputTextTimer = mutableStateOf("") // Текст, который вводится в поле
     var cutOffListTextsTimer  = mutableStateListOf<String>() // Массив текста, который вводится в поле
     var stateTimer = mutableStateOf(StateTimer.RESET)
     enum class StateTimer {
-        RESET,   // Состояние, когда таймер сброшен
-        RUNNING, // Состояние, когда таймер выполняется
-        PAUSED   // Состояние, когда таймер на паузе
-        //CUTOFF
+        RESET,
+        RUNNING,
+        PAUSED
     }
-    fun startTimer() {
+    private var db: AppDatabase? = null
+    private var cutOffDao: CutOffDao? = null
+
+    private suspend fun initializeDatabase() {
+        if (db == null) {
+            db = Room.databaseBuilder(
+                getApplication(),
+                AppDatabase::class.java,
+                "cutofftimes.db"
+            ).build()
+            cutOffDao = db?.cutOffDao()
+        }
+    }
+
+    suspend fun initDBStart() {
+        initializeDatabase()
+    }
+
+    private suspend fun addCutOffTimesToDatabase() {
+        if (cutOffDao == null) {
+            Log.e("Database", "DAO is not initialized")
+            return
+        }
+        cutOffTimesList.forEachIndexed { index, time ->
+            val cutOffText = cutOffListTextsTimer.getOrNull(index) ?: ""
+
+            // Создаем объект CutOffTime для каждого элемента
+            val cutOffTime = CutOffTime(
+                id = 0,  // id будет сгенерирован автоматически
+                listNumber = index + 1,  // Порядковый номер списка
+                cutOffTime = time,
+                cutOffText = cutOffText
+            )
+
+            cutOffDao?.insert(cutOffTime) ?: Log.e("Database", "cutOffDao is null")
+        }
+        fetchCutOffTimes()
+    }
+
+    suspend fun fetchCutOffTimes() {
+        _cutOffTimes.clear()  // Очищаем старые данные
+        val cutOffList = cutOffDao?.getAll()
+
+        // Добавляем данные в список, если они не null
+        if (cutOffList != null) {
+            _cutOffTimes.addAll(cutOffList)  // Добавляем в список, если данные не null
+        } else {
+            Log.e("TimerViewModel", "Failed to fetch cut-off times: data is null")
+        }
+    }
+
+    suspend fun startTimer() {
         if (stateTimer.value != StateTimer.RUNNING) {
             stateTimer.value = StateTimer.RUNNING
         }
+        //initializeDatabase()
     }
 
     // Обновить текст для определенной отсечки по индексу
@@ -44,7 +101,7 @@ class TimerViewModel : ViewModel() {
     // Отсечка
     fun cutOffTimer() {
         cutOffTimer.value = currentTime.value // Сохраняем текущее время
-        cutOffTimes.add(currentTime.value) // Добавляем текущее время в список отсечек
+        cutOffTimesList.add(currentTime.value) // Добавляем текущее время в список отсечек
         cutOffListTextsTimer.add(currentInputTextTimer.value)
         currentInputTextTimer.value = ""
     }
@@ -57,23 +114,32 @@ class TimerViewModel : ViewModel() {
             elapsedTime.value = 0L
             cutOffListTextsTimer.clear()
             currentInputTextTimer.value = ""
-            cutOffTimes.clear()
+            cutOffTimesList.clear()
             cutOffTimer.value = "00:00:00:00"
         }
 
     }
 
-    // Сохранить и Сбросить таймер
+    // Сбросить таймер
     fun saveResetTimer() {
         if (stateTimer.value == StateTimer.PAUSED) {
-            //DatabaseHelper.saveCutOffTime(applicationContext, cutOffTimes, cutOffListTextsTimer)
             stateTimer.value = StateTimer.RESET
             currentTime.value = "00:00:00:00"
             elapsedTime.value = 0L
             cutOffListTextsTimer.clear()
             currentInputTextTimer.value = ""
-            cutOffTimes.clear()
+            cutOffTimesList.clear()
             cutOffTimer.value = "00:00:00:00"
+        }
+
+    }
+
+    // Сохранить таймер
+    suspend fun saveTime() {
+        if (stateTimer.value != StateTimer.RESET) {
+            viewModelScope.launch {
+                addCutOffTimesToDatabase()
+            }
         }
 
     }
@@ -82,7 +148,7 @@ class TimerViewModel : ViewModel() {
     fun pauseTimer() {
         if (stateTimer.value == StateTimer.RUNNING) {
             stateTimer.value = StateTimer.PAUSED
-            pausedTime.value = currentTime.value // Сохраняем текущее время при паузе
+            pausedTime.value = currentTime.value
 
         }
     }
@@ -92,42 +158,4 @@ class TimerViewModel : ViewModel() {
         if (stateTimer.value == StateTimer.PAUSED)
             stateTimer.value = StateTimer.RUNNING
     }
-
-    /*// Метод для добавления времени отсечки
-    fun saveCutOffTime(context: Context, time: String) {
-        viewModelScope.launch {
-            DatabaseHelper.saveCutOffTime(context, time)
-        }
-    }
-
-    // Метод для добавления текста отсечки
-    fun saveCutOffText(context: Context, text: String) {
-        viewModelScope.launch {
-            DatabaseHelper.saveCutOffText(context, text)
-        }
-    }
-*/
-    // Метод для получения всех времен отсечек
-    /*fun getCutOffTimes(context: Context): List<CutOffTimeEntity> {
-        var cutOffTimes = listOf<CutOffTimeEntity>()
-        viewModelScope.launch {
-            cutOffTimes = DatabaseHelper.getCutOffTimes(context)
-        }
-        return cutOffTimes
-    }
-*/
-   /* // Для записи данных в базу
-    fun saveCutOffData(cutOffTimes: List<String>, cutOffListTextsTimer: List<String>) {
-        // Создаем объект данных для записи в базу
-        val cutOffData = CutOffTimeEntity(cutOffTimes = cutOffTimes, cutOffTextsTimer = cutOffListTextsTimer)
-
-        // Запуск асинхронной операции записи в базу данных
-        viewModelScope.launch(Dispatchers.IO) {
-            try {
-                CutOffDao.insert(cutOffData) // Вставка данных в базу
-            } catch (e: Exception) {
-                e.printStackTrace()
-            }
-        }
-    }*/
 }
