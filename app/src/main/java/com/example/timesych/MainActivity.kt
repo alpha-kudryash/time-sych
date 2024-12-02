@@ -177,15 +177,15 @@ fun MainScreen(modifier: Modifier = Modifier, timerViewModel: TimerViewModel) {
         while (state == TimerViewModel.StateTimer.RUNNING) {
             delay(10)  // Задержка 10 миллисекунд
             val currentMilliseconds = (elapsedTime % 1000) / 10
-            val currentSeconds = ((elapsedTime / 1000) % 60).toInt()
+            val currentSeconds = ((elapsedTime / 1000) % 60)
             val currentMinutes = (elapsedTime / 60000) % 60
             val currentHours = (elapsedTime / 3600000) % 24
 
             // Обновляем текущие значения времени
             timeText.value = String.format("%02d:%02d:%02d:%02d", currentHours, currentMinutes, currentSeconds, currentMilliseconds)
-
         }
-
+        if (state == TimerViewModel.StateTimer.RESET)
+            timeText.value = "00:00:00:00"
     }
 
     LaunchedEffect(cutOffTimes.size) {
