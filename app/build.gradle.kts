@@ -2,8 +2,8 @@ plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.kotlin.android)
     alias(libs.plugins.kotlin.compose)
-    //alias(libs.plugins.kotlin.kapt)
-    id("com.google.devtools.ksp")
+    id("com.google.devtools.ksp") // replace alias(libs.plugins.ksp)
+    //mb add base
 }
 
 android {
@@ -18,6 +18,11 @@ android {
         versionName = "1.0"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
+    }
+
+    buildFeatures {
+        viewBinding = true
+        buildConfig = true
     }
 
     buildTypes {
@@ -54,6 +59,7 @@ dependencies {
     implementation(libs.androidx.room.common)
     implementation(libs.androidx.room.ktx)
     implementation(libs.androidx.runtime.livedata)
+    implementation(libs.androidx.lifecycle.process)
     testImplementation(libs.junit)
     androidTestImplementation(libs.androidx.junit)
     androidTestImplementation(libs.androidx.espresso.core)
@@ -67,6 +73,12 @@ dependencies {
     implementation (libs.androidx.room.runtime)
     implementation (libs.androidx.room.ktx)
     ksp (libs.room.compiler)
-    //kapt (libs.androidx.room.compiler)
-    //kapt("groupId:artifactId:version")
+    implementation (libs.lifecycle.runtime.ktx)
+    implementation (libs.eventbus)
+    implementation(libs.stetho)
+    implementation(libs.bundles.room)
+    implementation (libs.material)
+    implementation (libs.androidx.viewpager2)
+    implementation (libs.compose.view.binding)
+    //implementation(libs.gradle)
 }

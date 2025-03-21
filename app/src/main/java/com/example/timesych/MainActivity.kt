@@ -1,41 +1,41 @@
 package com.example.timesych
 
-import android.os.Bundle
-import android.view.KeyEvent
 import android.media.AudioManager
 import android.os.Build
+import android.os.Bundle
 import android.os.VibrationEffect
 import android.os.Vibrator
 import android.util.Log
+import android.view.KeyEvent
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
+import androidx.activity.viewModels
+import androidx.appcompat.app.AppCompatActivity
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.itemsIndexed
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.material3.Button
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextField
 import androidx.compose.runtime.*
+import androidx.compose.runtime.livedata.observeAsState
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import com.example.timesych.ui.theme.TimeSychTheme
-import kotlinx.coroutines.delay
-import androidx.compose.runtime.mutableStateOf
-import androidx.activity.viewModels
-import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.itemsIndexed
-import androidx.compose.material3.TextField
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.unit.dp
-import com.google.accompanist.pager.*
-import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.lazy.rememberLazyListState
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.runtime.livedata.observeAsState
 import androidx.lifecycle.lifecycleScope
+import androidx.viewpager2.widget.ViewPager2
+import com.example.timesych.ui.theme.TimeSychTheme
+import com.google.accompanist.pager.*
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import java.util.Locale
+import com.example.timesych.databinding.ActivityMainBinding
 
 enum class VibrationType {
     HIGH, LOW
@@ -270,7 +270,7 @@ fun MainScreen(modifier: Modifier = Modifier, timerViewModel: TimerViewModel) {
                         when (state) {
                             TimerViewModel.StateTimer.RUNNING   -> onCutOffClick()
                             TimerViewModel.StateTimer.RESET     -> onStartClick()
-                            TimerViewModel.StateTimer.PAUSED    -> onResetClick()
+                            TimerViewModel.StateTimer.PAUSED    -> onStartClick()
                             else                                -> {}
                         }
                     }

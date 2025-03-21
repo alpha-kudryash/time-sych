@@ -1,20 +1,27 @@
 [versions]
 accompanistPager = "0.29.0-beta"
-agp = "8.7.2"
+agp = "8.7.3"
 foundation = "1.7.5"
+gradle = "8.0.2"
 kotlin = "2.0.0"
 coreKtx = "1.10.1"
 junit = "4.13.2"
 junitVersion = "1.1.5"
 espressoCore = "3.5.1"
+eventbus = "3.3.1"
 lifecycleRuntimeKtx = "2.6.1"
 activityCompose = "1.8.0"
 composeBom = "2024.04.01"
+material = "1.12.0"
 roomCommon = "2.6.1"
 roomCompiler = "2.6.1"
 roomKtx = "2.6.1"
 roomKtxVersion = "2.6.0"
 runtimeLivedata = "1.7.5"
+stetho = "1.6.0"
+lifecycleProcess = "2.8.7"
+viewpager2 = "1.1.0"
+compose = "1.6.0-alpha07"
 
 [libraries]
 accompanist-pager = { module = "com.google.accompanist:accompanist-pager", version = "0.36.0" }
@@ -24,6 +31,9 @@ androidx-foundation = { module = "androidx.compose.foundation:foundation", versi
 androidx-room-compiler = { module = "androidx.room:room-compiler" }
 androidx-room-ktx-v260 = { module = "androidx.room:room-ktx", version.ref = "roomKtxVersion" }
 androidx-room-runtime = { module = "androidx.room:room-runtime" }
+androidx-viewpager2 = { module = "androidx.viewpager2:viewpager2", version.ref = "viewpager2" }
+eventbus = { module = "org.greenrobot:eventbus", version.ref = "eventbus" }
+gradle = { module = "com.android.tools.build:gradle", version.ref = "gradle" }
 junit = { group = "junit", name = "junit", version.ref = "junit" }
 androidx-junit = { group = "androidx.test.ext", name = "junit", version.ref = "junitVersion" }
 androidx-espresso-core = { group = "androidx.test.espresso", name = "espresso-core", version.ref = "espressoCore" }
@@ -39,8 +49,19 @@ androidx-ui-test-junit4 = { group = "androidx.compose.ui", name = "ui-test-junit
 androidx-material3 = { group = "androidx.compose.material3", name = "material3" }
 androidx-room-common = { group = "androidx.room", name = "room-common", version.ref = "roomCommon" }
 androidx-room-ktx = { group = "androidx.room", name = "room-ktx", version.ref = "roomKtx" }
+lifecycle-runtime-ktx = { module = "androidx.lifecycle:lifecycle-runtime-ktx" }
+material = { module = "com.google.android.material:material", version.ref = "material" }
 room-compiler = { module = "androidx.room:room-compiler", version.ref = "roomCompiler" }
 androidx-runtime-livedata = { group = "androidx.compose.runtime", name = "runtime-livedata", version.ref = "runtimeLivedata" }
+androidx-lifecycle-process = { group = "androidx.lifecycle", name = "lifecycle-process", version.ref = "lifecycleProcess" }
+stetho = { module = "com.facebook.stetho:stetho", version.ref = "stetho" }
+compose-view-binding = { module = "androidx.compose.ui:ui-viewbinding", version.ref = "compose" }
+
+[bundles]
+room = [
+    "androidx-room-ktx",
+    "androidx-room-runtime",
+]
 
 [plugins]
 android-application = { id = "com.android.application", version.ref = "agp" }
